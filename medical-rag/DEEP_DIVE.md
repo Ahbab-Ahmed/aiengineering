@@ -11,9 +11,11 @@
    - [1.2 The Medical Guideline Assistant Solution](#12-the-medical-guideline-assistant-solution)
    - [1.3 System Invariants & Non-Negotiable Clinical Safeguards](#13-system-invariants--non-negotiable-clinical-safeguards)
 2. [High-Level Architecture & End-to-End Data Flow](#2-high-level-architecture--end-to-end-data-flow)
-   - [2.1 Comprehensive Architectural Topology](#21-comprehensive-architectural-topology)
-   - [2.2 Execution Pipeline: The 12 Discrete Processing Stages](#22-execution-pipeline-the-12-discrete-processing-stages)
-   - [2.3 Latency & Cost Budget Across Processing Stages](#23-latency--cost-budget-across-processing-stages)
+   - [2.1 The Offline Ingestion Flow ()](#21-the-offline-ingestion-flow-indexingpy)
+   - [2.2 The Online Runtime Query Flow ( $	o$ Client)](#22-the-online-runtime-query-flow-apppy-to-client)
+   - [2.3 Exact Data Transformation Matrix (What Changes at Each Step)](#23-exact-data-transformation-matrix-what-changes-at-each-step)
+   - [2.4 Latency & Cost Budget Across Processing Stages](#24-latency--cost-budget-across-processing-stages)
+   - [2.5 The 3 Golden Rules That Make This Safe](#25-the-3-golden-rules-that-make-this-safe)
 3. [🩺 Masterclass: Deep Technical Concepts (The 11 Architectural Pillars)](#3--masterclass-deep-technical-concepts-the-11-architectural-pillars)
    - [3.1 Topic 1: Hierarchical Parent-Child Chunking](#31-topic-1-hierarchical-parent-child-chunking)
    - [3.2 Topic 2: Dense Vector Embeddings & Cosine Space Geometry](#32-topic-2-dense-vector-embeddings--cosine-space-geometry)
@@ -146,121 +148,235 @@ The architecture enforces five non-negotiable invariants:
 
 ## 2. High-Level Architecture & End-to-End Data Flow
 
-### 2.1 Comprehensive Architectural Topology
-The end-to-end architecture is divided into seven decoupled processing zones:
+To understand the system without confusion, it is essential to separate the architecture into **two completely distinct operational lifecycles**:
+
+1. **The Offline Ingestion Flow (Kitchen Prep)**: Runs **once** in advance via `indexing.py`. It converts 21 PDF guideline manuals into 15,559 indexed chunks stored in Qdrant and the BM25 pickle cache.
+2. **The Online Runtime Query Flow (Customer Order)**: Runs **every time** a doctor or patient types a question into the browser and presses "Send".
 
 ```
-[User Browser / Client]
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ THE TWO OPERATIONAL LIFECYCLES                                                         │
+│                                                                                        │
+│ 1. OFFLINE INGESTION FLOW (Runs once in advance via indexing.py):                      │
+│    21 PDF Guidelines ──► PyMuPDF Extraction ──► Parent-Child Splitting                 │
+│                      ──► 3072D Embeddings ──► Qdrant Vector DB + BM25 Pickle Cache    │
+│                                                                                        │
+│ 2. ONLINE RUNTIME QUERY FLOW (Runs on every user search):                              │
+│    User Question ──► Regex & ML Guardrails ──► Dual Retrieval (Dense + BM25)           │
+│                  ──► RRF Fusion ──► Cross-Encoder Rerank ──► Confidence Gate (-4.0)    │
+│                  ──► Context Assembler ──► GPT-4o JSON Mode ──► Citation Verifier      │
+│                  ──► Server-Sent Events (SSE Stream) ──► Interactive Browser UI        │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 2.1 The Offline Ingestion Flow (`indexing.py`)
+
+The offline ingestion pipeline prepares the clinical knowledge base:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ STEP 1: PDF DOCUMENT INGESTION                                                         │
+│   Source: data/guidelines/*.pdf (21 Official MOHFW Treatment Guidelines)               │
+│   Tool: PyMuPDF (fitz) page-by-page text stream extraction                             │
+└──────────────────────────────────────────┬─────────────────────────────────────────────┘
+                                           │
+                                           ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ STEP 2: HIERARCHICAL CONCENTRIC CHUNKING                                               │
+│   Parent Chunk: 1,200 characters (100 char overlap) ──► Clinical coherence            │
+│   Child Chunk:    300 characters (50 char overlap)  ──► High-precision vector matching │
+│   Relationship: Each Parent is sliced into 3-4 Children.                               │
+│   Metadata Payload: The Child stores the full Parent text in its metadata dictionary!  │
+└──────────────────────────────────────────┬─────────────────────────────────────────────┘
+                                           │
+                                           ├─────────────────────────────────────────────┐
+                                           │                                             │
+                                           ▼                                             ▼
+┌───────────────────────────────────────────────────────┐   ┌─────────────────────────────────────────┐
+│ STEP 3A: DENSE EMBEDDING GENERATION                   │   │ STEP 3B: SPARSE BM25 INVERTED INDEX     │
+│   Model: OpenAI text-embedding-3-large                │   │   Tokenizer: Lowercase whitespace split │
+│   Input: 300-char Child Chunk Text                    │   │   Model: BM25Okapi (k1=1.5, b=0.75)     │
+│   Output: 3,072-dimensional unit vector               │   │   Output: In-memory inverted index      │
+└──────────────────────────┬────────────────────────────┘   └────────────────────┬────────────────────┘
+                           │                                                     │
+                           ▼                                                     ▼
+┌───────────────────────────────────────────────────────┐   ┌─────────────────────────────────────────┐
+│ STEP 4A: QDRANT VECTOR DATABASE (Docker)              │   │ STEP 4B: DISK SERIALIZATION             │
+│   Collection: medical_guidelines                      │   │   File: data/bm25_cache.pkl             │
+│   Index: HNSW Graph (Cosine Distance)                 │   │   Content: BM25 index + chunk metadata  │
+│   Payload: chunk_id, doc_id, source, page, parent_text│   └─────────────────────────────────────────┘
+└───────────────────────────────────────────────────────┘
+```
+
+#### What Ingestion Produces in Qdrant:
+Each of the 15,559 indexed vectors contains a structured JSON payload:
+```json
+{
+  "id": "chunk_98a7bc12",
+  "vector": [0.0142, -0.0381, 0.0094, "...3072 floating point values..."],
+  "payload": {
+    "chunk_id": "chunk_98a7bc12",
+    "doc_id": "malaria",
+    "source": "malaria.pdf",
+    "page": 6,
+    "text": "Artemisinin-based Combination Therapy (ACT) is the recommended first-line therapy...",
+    "parent_text": "Treatment of Uncomplicated P. falciparum Malaria: Artemisinin-based Combination Therapy (ACT) is the recommended first-line therapy across India. In North-Eastern states, ACT-AL is given. For the rest of India, Artesunate + Sulfadoxine-Pyrimethamine is administered... Single dose Primaquine on Day 2..."
+  }
+}
+```
+
+---
+
+### 2.2 The Online Runtime Query Flow (`app.py` $\to$ Client)
+
+When a clinician enters a query (*"What is the first-line treatment for uncomplicated falciparum malaria?"*), data flows through twelve discrete checkpoints:
+
+```
+[User Browser (UI)]
          │
-         │  1. HTTP POST /api/chat (query, session_id)
+         │  1. HTTP POST /api/chat {"query": "...", "session_id": "...", "mode": "learn"}
          ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ 1. INGESTION & SCREENING ZONE                                                          │
+│ STAGE 1: FAST-PATH INPUT SCREENING (safety.py)                                         │
 │                                                                                        │
-│   User Query ──► [Layer A: Regex Fast-Path (~0.1ms)]                                   │
-│                    ├── Matches CRISIS_PATTERNS?     ──► Return Emergency Hotlines      │
-│                    ├── Matches HARMFUL_PATTERNS?    ──► Return Harm Prevention Refusal │
-│                    ├── Matches PERSONAL_PATTERNS?   ──► Return Clinical Scope Refusal  │
-│                    └── Matches DOSING_PATTERNS?     ──► Return Posology Refusal        │
-│                                                                                        │
-│                  [Layer B: Hub ToxicLanguage Validator (~150ms)]                       │
-│                    └── Detoxify ALBERT Score > 0.3? ──► Return Toxic Language Refusal │
+│   check_input(query)                                                                   │
+│   ├── Layer A: Regex Fast-Path (~0.1ms, Zero Cost)                                     │
+│   │     ├── Matches CRISIS_PATTERNS?    ──► YES ──► Immediate Emergency Redirection   │
+│   │     ├── Matches HARMFUL_PATTERNS?   ──► YES ──► Immediate Harm Refusal             │
+│   │     ├── Matches PERSONAL_PATTERNS?  ──► YES ──► Immediate Personal Advice Refusal  │
+│   │     └── Matches DOSING_PATTERNS?    ──► YES ──► Immediate Posology Refusal         │
+│   │                                                                                    │
+│   └── Layer B: Hub ToxicLanguage Classifier (~150ms)                                   │
+│         └── ALBERT Neural Network (Detoxify): P(toxic) > 0.3? ──► Toxic Refusal        │
 └──────────────────────────────────────────┬─────────────────────────────────────────────┘
                                            │ PASS (GuardrailStatus.ALLOW)
                                            ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ 2. QUERY EXPANSION & NORMALIZATION ZONE                                                │
+│ STAGE 2: QUERY NORMALIZATION & ACRONYM EXPANSION (assistant.py)                        │
 │                                                                                        │
-│   Regex Acronym Expansion: "BP" ──► "blood pressure", "TB" ──► "tuberculosis", etc.   │
+│   rewrite_query(query)                                                                 │
+│   Regex dictionary expands medical shorthand:                                          │
+│   "BP" ──► "blood pressure", "TB" ──► "tuberculosis", "HTN" ──► "hypertension"        │
 └──────────────────────────────────────────┬─────────────────────────────────────────────┘
                                            │
                                            ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ 3. HYBRID CANDIDATE RETRIEVAL ZONE (retriever.py)                                     │
+│ STAGE 3: TWO-STREAM HYBRID CANDIDATE RETRIEVAL (retriever.py)                          │
 │                                                                                        │
-│   Parallel Dual-Stream Retrieval:                                                      │
-│   ├── Dense Stream: OpenAI text-embedding-3-large (3072D) ──► Qdrant HNSW (Top-8)      │
-│   └── Sparse Stream: Inverted Token Index ──────────────────► BM25Okapi (Top-8)        │
-│                                                                                        │
-│   Rank Fusion:                                                                         │
-│   └── Reciprocal Rank Fusion (RRF, K=60): RRF(d) = Σ 1 / (60 + rank(d))                │
-│       Merged candidate pool: Top-16 unique child chunks                                │
+│   Parallel Dual Retrieval:                                                             │
+│   ├── Stream 1 (Dense Semantic):                                                       │
+│   │   OpenAI text-embedding-3-large ──► Qdrant HNSW Cosine Search ──► Top 8 Chunks     │
+│   │                                                                                    │
+│   └── Stream 2 (Sparse Lexical):                                                       │
+│       Lowercase token split ────────► BM25Okapi Inverted Index ─────► Top 8 Chunks     │
 └──────────────────────────────────────────┬─────────────────────────────────────────────┘
                                            │
                                            ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ 4. CROSS-ATTENTION RERANKING & CONFIDENCE GATE ZONE                                    │
+│ STAGE 4: RECIPROCAL RANK FUSION (retriever.py: _fuse)                                  │
 │                                                                                        │
-│   Cross-Encoder Model: ms-marco-MiniLM-L-6-v2 (Local PyTorch CPU Inference)            │
-│   Scores all 16 (Query, Chunk) pairs via full 6-layer bidirectional cross-attention    │
-│   Sorted descending by logit score: Top-5 final candidates                             │
+│   RRF(d) = Σ 1 / (60 + rank(d))                                                        │
+│   Combines dense and sparse ranks non-parametrically.                                  │
+│   Candidates agreed upon by both search engines jump to the top.                       │
+│   ──► Produces Top 16 Unique Candidates                                                │
+└──────────────────────────────────────────┬─────────────────────────────────────────────┘
+                                           │
+                                           ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ STAGE 5: CROSS-ENCODER RERANKING (retriever.py: _rerank)                               │
 │                                                                                        │
-│   Confidence Gate Evaluation:                                                          │
-│   └── Top-1 Score < -4.0? ──► YES ──► Intercept! Return LOW_CONFIDENCE Refusal         │
-│                           └── NO  ──► ALLOW to LLM Synthesis                          │
+│   Model: ms-marco-MiniLM-L-6-v2 (Local PyTorch CPU Inference)                          │
+│   Constructs 16 query-chunk pairs: [(query, chunk_1), (query, chunk_2), ...]          │
+│   Computes all-pairs cross-attention across 6 transformer layers.                      │
+│   Outputs unbounded relevance logit scores (e.g. +4.912).                              │
+│   ──► Sorts descending, keeps Top 5 Final Chunks                                       │
+└──────────────────────────────────────────┬─────────────────────────────────────────────┘
+                                           │
+                                           ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ STAGE 6: CONFIDENCE GATE EVALUATION (safety.py: check_confidence)                      │
+│                                                                                        │
+│   Is Top-1 Cross-Encoder Score < -4.0?                                                 │
+│   ├── YES (Score < -4.0): Out-of-Domain or Ambiguous Query!                            │
+│   │   ──► INTERCEPT! Return: "This information is not available in MOHFW guidelines..."│
+│   │   ──► GPT-4o IS NEVER CALLED (Zero API Cost, Zero Hallucination Risk)             │
+│   └── NO  (Score >= -4.0): High-confidence medical match found!                        │
+│       ──► PROCEED TO GENERATION                                                        │
 └──────────────────────────────────────────┬─────────────────────────────────────────────┘
                                            │ PASS (Top-1 Score >= -4.0)
                                            ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ 5. GROUNDED GENERATION ZONE (assistant.py)                                             │
+│ STAGE 7: CONTEXT ASSEMBLY & PARENT SWAP (assistant.py: format_context)                 │
 │                                                                                        │
-│   Context Assembler: Replace child text with 1200-char PARENT_TEXT metadata            │
-│   Session History: Truncate to sliding window of last 6 messages (3 turns)             │
-│   System Prompt: Enforce epistemic amnesia, citation tags, and JSON mode               │
-│   LLM Inference: OpenAI GPT-4o (temperature=0.1, response_format={"type": "json_obj"}) │
+│   CRITICAL CONCENTRIC SWAP:                                                            │
+│   1. Discard the short 300-char child chunk text used for search.                      │
+│   2. Extract the 1,200-char PARENT_TEXT stored in the chunk's metadata!                │
+│   3. Inject parent blocks into prompt with explicit [chunk_xxxxxx] source headers.     │
 └──────────────────────────────────────────┬─────────────────────────────────────────────┘
                                            │
                                            ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ 6. OUTPUT SAFETY VERIFICATION ZONE (safety.py)                                         │
+│ STAGE 8: GROUNDED SYNTHESIS IN JSON MODE (assistant.py: stream_answer)                 │
 │                                                                                        │
-│   Dual Output Verification:                                                            │
-│   ├── Check 1: Diagnostic/Prescriptive Phrasing Regex Scan                             │
-│   ├── Check 2: Hub ToxicLanguage ML Re-check on Generated Answer                       │
-│   └── Check 3: Programmatic Citation Set Containment Check:                            │
-│                Verify: {cited_chunk_ids} ⊆ {retrieved_chunk_ids}                       │
-│                If violations detected ──► Redact & override with safe refusal          │
+│   Model: OpenAI GPT-4o                                                                 │
+│   Parameters: temperature=0.1 (Strict factual extraction), json_object mode            │
+│   System Prompt Rule: "Answer ONLY using provided context. You have amnesia outside it.│
+│                        Cite [chunk_id] for every single factual claim."                │
+└──────────────────────────────────────────┬─────────────────────────────────────────────┘
+                                           │
+                                           ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ STAGE 9: OUTPUT SAFETY VERIFICATION & CITATION AUDIT (safety.py: check_output)         │
+│                                                                                        │
+│   Three Sequential Verification Checks:                                                │
+│   1. Prescriptive Phrasing Scan: Flags "you should take", "my diagnosis is".           │
+│   2. Output Toxicity Scan: Re-runs Detoxify ML on generated answer text.               │
+│   3. Citation Set Containment Proof:                                                   │
+│      Verify: {chunk_ids_cited_in_json} ⊆ {chunk_ids_passed_in_context}                 │
+│      If model cited a non-existent or unretrieved ID ──► REDACT & EMIT SAFE REFUSAL!   │
 └──────────────────────────────────────────┬─────────────────────────────────────────────┘
                                            │ PASS
                                            ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ 7. STREAMING & PERSISTENCE ZONE (app.py & session_manager.py)                          │
+│ STAGE 10: REAL-TIME STREAMING & PERSISTENCE (app.py & session_manager.py)              │
 │                                                                                        │
 │   FastAPI Server-Sent Events (SSE):                                                    │
-│   ├── Stream tokens chunk-by-chunk: data: {"type": "token", "content": "..."}          │
-│   ├── Send verified citations:     data: {"type": "citations", "citations": [...]}    │
-│   ├── Append mandatory MOHFW educational disclaimer                                    │
-│   └── Commit conversation turn to SQLite database (data/sessions.db)                   │
-└────────────────────────────────────────────────────────────────────────────────────────┘
+│   1. Push incremental markdown tokens: data: {"type": "token", "content": "..."}       │
+│   2. Push validated citation metadata: data: {"type": "citations", "citations": [...]} │
+│   3. Append mandatory MOHFW educational disclaimer                                     │
+│   4. Commit conversation turn to data/sessions.db (SQLite WAL mode)                    │
+└──────────────────────────────────────────┬─────────────────────────────────────────────┘
+                                           │
+                                           ▼
+                                [ User Browser (UI) ]
+              Renders smooth flowing markdown tokens in ~350ms TTFT
+                 with interactive clickable citation badges to PDF pages!
 ```
 
-### 2.2 Execution Pipeline: The 12 Discrete Processing Stages
-Every query submitted to the assistant traverses twelve deterministic processing stages:
+---
 
-```
-[1. Ingestion] ──► [2. Regex Guardrail] ──► [3. ML Toxic Guardrail] ──► [4. Query Normalization]
-      │
-      ▼
-[5. Dense Search] ──► [6. BM25 Search] ──► [7. Rank Fusion (RRF)] ──► [8. Cross-Encoder Rerank]
-      │
-      ▼
-[9. Confidence Gate] ──► [10. Parent Context Assembly] ──► [11. GPT-4o JSON Mode] ──► [12. Output Safety & SSE]
-```
+### 2.3 Exact Data Transformation Matrix (What Changes at Each Step)
 
-1. **HTTP Ingestion**: The FastAPI async server receives a JSON payload containing the query string, session UUID, and operating mode (`learn` or `prescribe`).
-2. **Layer A Regex Fast-Path**: The query is matched against pre-compiled regex groups (`CRISIS`, `HARMFUL`, `PERSONAL`, `DOSING`). If matched, execution terminates in $<0.1$ ms.
-3. **Layer B Hub ToxicLanguage Scan**: If regex passes, the query is scored by the local ALBERT model to catch nuanced or disguised abusive intent.
-4. **Query Rewriting & Acronym Expansion**: Medical abbreviations (e.g., `HTN`, `TB`, `ORS`, `BP`) are expanded to canonical guideline terminology.
-5. **Dense Vector Embedding & HNSW Search**: The expanded query is embedded via `text-embedding-3-large` ($d=3072$) and matched against the Qdrant index, returning the top-8 semantic candidates.
-6. **BM25 Sparse Lexical Retrieval**: Concurrently, the tokenized query is scored against the BM25 inverted index, returning the top-8 lexical candidates.
-7. **Reciprocal Rank Fusion**: The two 8-item candidate lists are merged via the RRF formula ($K=60$), producing a unified pool of 10–16 unique candidates.
-8. **Cross-Encoder Cross-Attention Reranking**: Candidate pairs are passed to `ms-marco-MiniLM-L-6-v2`, which computes full bidirectional attention and outputs unbounded relevance logits.
-9. **Confidence Gate Evaluation**: The top candidate's logit score $S_{\text{top1}}$ is compared against `CONFIDENCE_THRESHOLD = -4.0`. If below $-4.0$, retrieval is judged non-authoritative, and a safe refusal is returned.
-10. **Prompt Assembly with Parent Context**: For passing candidates, child chunks are resolved to their 1,200-character `parent_text` blocks and formatted with explicit `[chunk_xxxxxx]` identifiers.
-11. **Grounded Generation via GPT-4o**: GPT-4o generates an authoritative response in JSON mode (`temperature=0.1`) under strict amnesia constraints.
-12. **Output Guardrail & Integrity Verification**: The output is screened for prescriptive phrasing, verified against the retrieved chunk set ($\mathcal{C}_{\text{cited}} \subseteq \mathcal{C}_{\text{retrieved}}$), saved to SQLite (`sessions.db`), and streamed over SSE with the mandatory MOHFW disclaimer.
+| Stage | Executing Function / File | Input Data Structure | Applied Algorithmic Operation | Output Data Structure |
+|---|---|---|---|---|
+| **1. Screen** | [`check_input`](file:///Users/renegade/Developer/techwithp/aiengineering/medical-rag/safety.py#L90) | Raw query string | Regex match against 4 pattern groups + ALBERT toxicity classification | `GuardrailResult(status=ALLOW)` or short-circuit refusal string |
+| **2. Rewrite** | [`rewrite_query`](file:///Users/renegade/Developer/techwithp/aiengineering/medical-rag/assistant.py#L85) | Clean query string | Regex dictionary substitution for medical abbreviations (`HTN`, `TB`, `BP`) | Expanded canonical clinical query string |
+| **3. Dense** | [`_dense_retrieve`](file:///Users/renegade/Developer/techwithp/aiengineering/medical-rag/retriever.py#L90) | Expanded query string | `text-embedding-3-large` generates 3072D vector $\to$ Qdrant HNSW cosine search | List of 8 child chunk dicts with metadata payloads |
+| **4. Sparse** | [`_bm25_retrieve`](file:///Users/renegade/Developer/techwithp/aiengineering/medical-rag/retriever.py#L108) | Expanded query string | Lowercase tokenization $\to$ Inverted index BM25Okapi scoring | List of 8 child chunk dicts with BM25 float scores |
+| **5. Fuse** | [`_fuse`](file:///Users/renegade/Developer/techwithp/aiengineering/medical-rag/retriever.py#L136) | Two lists of 8 chunks each | Cormack Reciprocal Rank Fusion: $\sum \frac{1}{60 + \text{rank}}$ | Merged list of 10–16 unique candidate chunks sorted by RRF rank |
+| **6. Rerank** | [`_rerank`](file:///Users/renegade/Developer/techwithp/aiengineering/medical-rag/retriever.py#L165) | 16 (Query, Chunk) text pairs | `ms-marco-MiniLM-L-6-v2` 6-layer cross-attention inference | List of 5 top chunks with unbounded logit scores attached |
+| **7. Gate** | [`check_confidence`](file:///Users/renegade/Developer/techwithp/aiengineering/medical-rag/safety.py#L141) | Top-1 logit float (e.g. `+4.912`) | Comparison against threshold: $S_{\text{top1}} \ge -4.0$ | `GuardrailStatus.ALLOW` or immediate out-of-domain refusal |
+| **8. Context** | [`format_context`](file:///Users/renegade/Developer/techwithp/aiengineering/medical-rag/assistant.py#L95) | Top 5 chunk objects | Concentric swap: discard child text, extract 1,200-char `parent_text` | Formatted prompt context string with `[chunk_xxxxxx]` identifiers |
+| **9. Generate**| [`stream_answer`](file:///Users/renegade/Developer/techwithp/aiengineering/medical-rag/assistant.py#L145) | Prompt + sliding history + context | GPT-4o JSON mode decoding at $T=0.1$ with strict amnesia prompt | Stream of incremental token strings + structured JSON object |
+| **10. Audit** | [`check_output`](file:///Users/renegade/Developer/techwithp/aiengineering/medical-rag/safety.py#L154) | Generated JSON string + cited IDs | Prescriptive regex scan + set containment: $\mathcal{C}_{\text{cited}} \subseteq \mathcal{C}_{\text{retrieved}}$ | Validated output or high-priority redaction override |
+| **11. Stream**| [`chat_endpoint`](file:///Users/renegade/Developer/techwithp/aiengineering/medical-rag/app.py#L135) | Token strings & citation dicts | Wrap in W3C SSE event framing: `data: {"type": "token"} \n\n` | HTTP `text/event-stream` response to client browser |
+| **12. Persist**| [`add_message`](file:///Users/renegade/Developer/techwithp/aiengineering/medical-rag/session_manager.py#L50) | User query + Assistant response | SQLite write transaction with foreign keys in WAL mode | Row inserted into `messages` table in `data/sessions.db` |
 
-### 2.3 Latency & Cost Budget Across Processing Stages
+---
+
+### 2.4 Latency & Cost Budget Across Processing Stages
 In clinical environments, predictability of latency and zero-cost safety checks are paramount:
 
 | Processing Stage | Component / Technology | Mean Latency | Compute / Hardware | Financial Cost | Refusal / Failure Action |
@@ -278,6 +394,13 @@ In clinical environments, predictability of latency and zero-cost safety checks 
 | **Session SQLite Write** | Python `sqlite3` WAL Mode | **2.5 ms** | Local Disk I/O | **$0.00** | Log error, deliver response to user |
 | **Total Pipeline (Pass)** | Full End-to-End RAG | **~2,100–3,400 ms** | Hybrid Local + Cloud | **~$0.02** | Time to First Token (TTFT): **~350 ms** via SSE |
 | **Total Pipeline (Refusal)**| Fast-Path Layer A | **0.2 ms** | 100% Local CPU | **$0.00** | Instantaneous user protection |
+
+---
+
+### 2.5 The 3 Golden Rules That Make This Safe
+1. **Why Parent-Child?** Vector search needs **short chunks** (300 chars) to match precisely without embedding dilution. But the LLM needs **long paragraphs** (1,200 chars) so it doesn't miss critical contraindications (such as pregnancy, age limits, or organ failure).
+2. **Why Both Dense + BM25?** Dense embeddings understand **synonyms** (*"high blood sugar"* $\approx$ *"diabetes"*). BM25 understands **exact names and numbers** (*"Pyrazinamide"*, *"150/95"*, *"GCS < 8"*).
+3. **Why the Confidence Gate?** Vector search always returns the closest 5 chunks even if you ask for a chocolate cake recipe. The Cross-Encoder scores relevance: if the top score is below $-4.0$, **we refuse before calling GPT-4o**, making out-of-domain hallucinations mathematically impossible.
 
 ---
 
