@@ -1,0 +1,156 @@
+{
+  "indexed_at": "2026-09-08T14:48:36.789516+00:00",
+  "collection": "medical_guidelines",
+  "embed_model": "text-embedding-3-large",
+  "chunk_size": 300,
+  "total_chunks": 15559,
+  "documents": [
+    {
+      "file": "antimicrobial_guidelines.pdf",
+      "doc_id": "antimicrobial_guidelines",
+      "pages": 64,
+      "chunks": 861,
+      "indexed_at": "2026-09-08T14:45:17.070629+00:00"
+    },
+    {
+      "file": "ari_children_quick_ref.pdf",
+      "doc_id": "ari_children_quick_ref",
+      "pages": 45,
+      "chunks": 348,
+      "indexed_at": "2026-09-08T14:45:17.138543+00:00"
+    },
+    {
+      "file": "ayurveda.pdf",
+      "doc_id": "ayurveda",
+      "pages": 16,
+      "chunks": 78,
+      "indexed_at": "2026-09-08T14:45:17.160288+00:00"
+    },
+    {
+      "file": "cardiovascular_diseases.pdf",
+      "doc_id": "cardiovascular_diseases",
+      "pages": 40,
+      "chunks": 315,
+      "indexed_at": "2026-09-08T14:45:17.226003+00:00"
+    },
+    {
+      "file": "critical_care.pdf",
+      "doc_id": "critical_care",
+      "pages": 123,
+      "chunks": 890,
+      "indexed_at": "2026-09-08T14:45:17.384244+00:00"
+    },
+    {
+      "file": "dengue.pdf",
+      "doc_id": "dengue",
+      "pages": 11,
+      "chunks": 22,
+      "indexed_at": "2026-09-08T14:45:17.869791+00:00"
+    },
+    {
+      "file": "general_surgery.pdf",
+      "doc_id": "general_surgery",
+      "pages": 74,
+      "chunks": 531,
+      "indexed_at": "2026-09-08T14:45:17.964603+00:00"
+    },
+    {
+      "file": "hypertension_full.pdf",
+      "doc_id": "hypertension_full",
+      "pages": 144,
+      "chunks": 1373,
+      "indexed_at": "2026-09-08T14:45:18.204498+00:00"
+    },
+    {
+      "file": "hypertension_quick_ref.pdf",
+      "doc_id": "hypertension_quick_ref",
+      "pages": 54,
+      "chunks": 502,
+      "indexed_at": "2026-09-08T14:45:18.305651+00:00"
+    },
+    {
+      "file": "malaria.pdf",
+      "doc_id": "malaria",
+      "pages": 20,
+      "chunks": 152,
+      "indexed_at": "2026-09-08T14:45:18.336369+00:00"
+    },
+    {
+      "file": "neurology.pdf",
+      "doc_id": "neurology",
+      "pages": 101,
+      "chunks": 2490,
+      "indexed_at": "2026-09-08T14:45:18.786131+00:00"
+    },
+    {
+      "file": "npcdcs_manual.pdf",
+      "doc_id": "npcdcs_manual",
+      "pages": 87,
+      "chunks": 547,
+      "indexed_at": "2026-09-08T14:45:18.907193+00:00"
+    },
+    {
+      "file": "obstetrics_gynaecology.pdf",
+      "doc_id": "obstetrics_gynaecology",
+      "pages": 102,
+      "chunks": 668,
+      "indexed_at": "2026-09-08T14:45:19.029952+00:00"
+    },
+    {
+      "file": "oncology.pdf",
+      "doc_id": "oncology",
+      "pages": 138,
+      "chunks": 991,
+      "indexed_at": "2026-09-08T14:45:19.211032+00:00"
+    },
+    {
+      "file": "orthopaedics.pdf",
+      "doc_id": "orthopaedics",
+      "pages": 161,
+      "chunks": 1016,
+      "indexed_at": "2026-09-08T14:45:19.404021+00:00"
+    },
+    {
+      "file": "paediatrics.pdf",
+      "doc_id": "paediatrics",
+      "pages": 123,
+      "chunks": 663,
+      "indexed_at": "2026-09-08T14:45:19.529611+00:00"
+    },
+    {
+      "file": "respiratory_medicine.pdf",
+      "doc_id": "respiratory_medicine",
+      "pages": 109,
+      "chunks": 731,
+      "indexed_at": "2026-09-08T14:45:19.662405+00:00"
+    },
+    {
+      "file": "siddha.pdf",
+      "doc_id": "siddha",
+      "pages": 202,
+      "chunks": 1239,
+      "indexed_at": "2026-09-08T14:45:19.908879+00:00"
+    },
+    {
+      "file": "snakebite_full.pdf",
+      "doc_id": "snakebite_full",
+      "pages": 108,
+      "chunks": 1186,
+      "indexed_at": "2026-09-08T14:45:20.116622+00:00"
+    },
+    {
+      "file": "snakebite_quick_ref.pdf",
+      "doc_id": "snakebite_quick_ref",
+      "pages": 54,
+      "chunks": 441,
+      "indexed_at": "2026-09-08T14:45:20.201866+00:00"
+    },
+    {
+      "file": "tb_standards.pdf",
+      "doc_id": "tb_standards",
+      "pages": 78,
+      "chunks": 515,
+      "indexed_at": "2026-09-08T14:45:20.313226+00:00"
+    }
+  ]
+}

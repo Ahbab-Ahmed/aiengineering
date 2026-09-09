@@ -1,0 +1,27 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv/
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+
+# Local SQLite databases & Vector store caches
+*.db
+*.db-journal
+*.pkl
+qdrant_storage/
+
+# macOS files
+.DS_Store
+
+# Large files exceeding GitHub 100MB limit (download via Google Drive link in README)
+**/dengue.pdf

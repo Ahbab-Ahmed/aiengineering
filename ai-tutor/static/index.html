@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Engineering Tutor — Chip Huyen's Book</title>
+  <meta name="description" content="Learn AI Engineering interactively from Chip Huyen's book using hybrid RAG, HyDE, and gpt-4o." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div id="loading-overlay" class="loading-overlay">
+  <div class="loading-content">
+    <div class="loading-logo">🎓</div>
+    <h2>AI Engineering Tutor</h2>
+    <p>Starting hybrid retrieval engine…</p>
+    <div class="loading-bar"><div class="loading-fill"></div></div>
+    <p class="loading-sub" id="loading-sub">BM25 cache • Cross-encoder • HyDE pipeline</p>
+  </div>
+</div>
+
+<div class="app" id="app" style="display:none">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">🎓</div>
+      <div class="brand-text">
+        <span class="brand-title">AI Engineering</span>
+        <span class="brand-sub">Learning Tutor · gpt-4o</span>
+      </div>
+    </div>
+
+    <button class="new-session-btn" id="new-session-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New Session
+    </button>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Sessions</div>
+      <div class="sessions-list" id="sessions-list"></div>
+    </div>
+
+    <div class="sidebar-section curriculum-section">
+      <div class="sidebar-label">📚 10-Session Curriculum</div>
+      <div class="curriculum-list" id="curriculum-list"></div>
+    </div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <main class="main">
+
+    <!-- Header -->
+    <header class="chat-header">
+      <div class="header-left">
+        <span class="header-book">📕 Chip Huyen · AI Engineering (O'Reilly 2025)</span>
+      </div>
+      <div class="mode-tabs" id="mode-tabs">
+        <button class="mode-tab active" data-mode="learn" title="Structured 6-part teaching">📖 Learn</button>
+        <button class="mode-tab" data-mode="quiz" title="Generate quiz questions">🧠 Quiz</button>
+        <button class="mode-tab" data-mode="curriculum" title="10-session guided course">🗺️ Curriculum</button>
+      </div>
+      <div class="header-right">
+        <span class="model-badge">gpt-4o</span>
+        <span class="model-badge secondary">HyDE + multi-query</span>
+        <button class="notes-toggle-btn" id="notes-toggle" title="Session Notes">📝</button>
+      </div>
+    </header>
+
+    <!-- Chat messages -->
+    <div class="messages" id="messages">
+      <div class="welcome-msg" id="welcome-msg">
+        <div class="welcome-icon">🎓</div>
+        <h2>Welcome to your AI Engineering Tutor</h2>
+        <p>Ask anything about Chip Huyen's <em>AI Engineering</em> book. I'll teach with structured explanations, real-world examples, and precise page + chapter references.</p>
+        <div class="welcome-suggestions">
+          <button class="suggestion-chip" data-msg="What is AI Engineering and how is it different from traditional ML engineering?">What is AI Engineering?</button>
+          <button class="suggestion-chip" data-msg="Explain RAG in depth — how does it work and when should I use it?">Explain RAG</button>
+          <button class="suggestion-chip" data-msg="When should I finetune vs use RAG? Give me a decision framework.">Finetuning vs RAG</button>
+          <button class="suggestion-chip" data-msg="What are AI Agents and how do they work with tools?">AI Agents</button>
+          <button class="suggestion-chip" data-msg="How do I evaluate an AI application? What metrics and methods should I use?">Evaluation</button>
+          <button class="suggestion-chip" data-msg="Quiz me on Prompt Engineering">🧠 Quiz me</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div class="input-area">
+      <div class="input-mode-indicator" id="input-mode-indicator">
+        <span class="mode-dot learn-dot" id="mode-dot"></span>
+        <span id="mode-label">Learn Mode</span>
+        <span class="input-separator">·</span>
+        <span class="rag-info">HyDE + multi-query + cross-encoder</span>
+      </div>
+      <div class="input-row">
+        <textarea id="user-input" placeholder="Ask anything about AI Engineering…" rows="1"></textarea>
+        <button class="send-btn" id="send-btn" disabled>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+      </div>
+      <div class="input-hint">
+        <kbd>Enter</kbd> send &nbsp;·&nbsp; <kbd>Shift+Enter</kbd> new line
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Notes panel -->
+  <div class="notes-panel" id="notes-panel">
+    <div class="notes-header">
+      <span>📝 Session Notes</span>
+      <button class="notes-close" id="notes-close">×</button>
+    </div>
+    <textarea id="notes-textarea" placeholder="Take notes as you learn…&#10;&#10;Your notes are auto-saved and persist across sessions."></textarea>
+    <div class="notes-footer">
+      <span class="notes-status" id="notes-status">Auto-saved</span>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
