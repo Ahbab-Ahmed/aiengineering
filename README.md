@@ -8,7 +8,7 @@ A collection of production-grade AI engineering systems built alongside *AI Engi
 
 | Project | Description | Key AI Engineering Techniques | Stack | Documentation |
 |---|---|---|---|:---:|
-| **[medical-rag](medical-rag/)** | **Medical Guideline Assistant** grounded in 21 official MOHFW standard treatment guidelines with hard boundaries against personal diagnosis | • Hierarchical Parent-Child Chunking<br>• Hybrid Search (Dense + BM25Okapi)<br>• Reciprocal Rank Fusion (RRF)<br>• Cross-Encoder Reranking (`ms-marco`)<br>• Calibrated Confidence Gating (-4.0)<br>• Multi-Tier Input/Output Guardrails<br>• 24-Case Automated Benchmark (96% accuracy, 100% safe refusal) | FastAPI<br>Qdrant<br>OpenAI GPT-4o<br>SentenceTransformers<br>Guardrails AI Hub | [📖 Deep Dive](medical-rag/DEEP_DIVE.md)<br>[🎙️ Presentation Guide](medical-rag/PRESENTATION_GUIDE.md)<br>[📄 README](medical-rag/README.md) |
+| **[medical-rag](medical-rag/)** | **Medical Guideline Assistant** grounded in 21 official MOHFW standard treatment guidelines with hard boundaries against personal diagnosis | • Hierarchical Parent-Child Chunking<br>• Hybrid Search (Dense + BM25Okapi)<br>• Reciprocal Rank Fusion (RRF)<br>• Cross-Encoder Reranking (`ms-marco`)<br>• Calibrated Confidence Gating (-4.0)<br>• Multi-Tier Input/Output Guardrails<br>• 24-Case Automated Benchmark (96% accuracy, 100% safe refusal) | FastAPI<br>Qdrant<br>OpenAI GPT-4o<br>SentenceTransformers<br>Guardrails AI Hub | [📖 Deep Dive](medical-rag/DEEP_DIVE.md)<br>[📄 README](medical-rag/README.md) |
 
 ---
 

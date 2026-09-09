@@ -13,10 +13,8 @@
 
 ## 📚 Essential Documentation
 
-| Document | Description |
-|---|---|
-| 📖 **[DEEP_DIVE.md](DEEP_DIVE.md)** | **Exhaustive Technical Manual (~53KB)** covering all mathematical foundations (Cosine, BM25Okapi, RRF, Cross-Encoders), Parent-Child chunking, code walkthroughs, and post-mortem lessons. |
-| 🎙️ **[PRESENTATION_GUIDE.md](PRESENTATION_GUIDE.md)** | **Saturday Showcase Playbook** featuring the 12-minute presentation agenda, live demo script (4 exact queries to type), architecture cues, benchmark analysis, and instructor Q&A defense. |
+For an exhaustive technical breakdown of mathematics, architectures, parent-child chunking, and post-mortem lessons, see:
+👉 **[DEEP_DIVE.md](DEEP_DIVE.md)**
 
 ---
 
@@ -155,7 +153,6 @@ make status    # Check container and server health status
 ```
 medical-rag/
 ├── DEEP_DIVE.md          # Exhaustive technical, mathematical, and architectural manual
-├── PRESENTATION_GUIDE.md # Saturday cohort showcase script and Q&A defense playbook
 ├── README.md             # This document
 ├── Makefile              # Automation shortcuts (start, stop, evaluate, index)
 ├── docker-compose.yml    # Qdrant vector database container configuration

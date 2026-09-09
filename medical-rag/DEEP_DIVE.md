@@ -1,8 +1,6 @@
 # 🏥 Medical RAG: Complete Technical Deep Dive & Masterclass
 
 > **A Comprehensive Engineering Guide to Building a Production-Grade, Safety-Critical Retrieval-Augmented Generation System for Medical Guidelines.**
->
-> 🎙️ **Looking for the Saturday Showcase & Live Demo script? Check out [PRESENTATION_GUIDE.md](PRESENTATION_GUIDE.md)**
 
 ---
 
