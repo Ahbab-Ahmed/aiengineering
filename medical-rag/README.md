@@ -14,6 +14,7 @@
 
 ## 📑 Quick Links & Documentation
 
+- 🎓 **[RAG_Masterclass_1Hour_Training.ipynb](RAG_Masterclass_1Hour_Training.ipynb)**: **The Interactive 1-Hour Workshop & Presentation Notebook** (executable code cells, visual presentation slides, chunking, embeddings, BM25, RRF, cross-encoders, and confidence gating).
 - 📖 **[DEEP_DIVE.md](DEEP_DIVE.md)**: **The Complete 2,600+ Line Technical Manual & Masterclass** (mathematical derivations, 11 architectural pillars, clinical pharmacology scenarios, ablation studies, and failure post-mortems).
 - 🧪 **[evaluator.py](evaluator.py)**: Automated 24-case adversarial benchmark and TruLens RAG Triad scoring harness.
 - 🛡️ **[safety.py](safety.py)**: Multi-tier input/output guardrails and calibrated cross-encoder confidence gate.
